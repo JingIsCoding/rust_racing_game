@@ -1,19 +1,23 @@
+use std::f64::consts::PI;
+
 use crate::game::car::*;
 use crate::game::track::*;
 use crate::engine::*;
 use ndarray::arr2;
 
-const SENSOR_RANGE: f64 = 200.0;
+pub const SENSOR_RANGE: f64 = 200.0;
 
+#[derive(Debug)]
 pub struct Sensor {
     forward: Line,
     right: Line,
     back: Line,
     left: Line,
-    forward_dis: f64,
-    right_dis: f64,
-    back_dis: f64,
-    left_dis: f64,
+    pub forward_dis: f64,
+    pub right_dis: f64,
+    pub back_dis: f64,
+    pub left_dis: f64,
+    pub track_direction: f64
 }
 
 impl Sensor {
@@ -27,6 +31,7 @@ impl Sensor {
             right_dis: SENSOR_RANGE,
             back_dis: SENSOR_RANGE,
             left_dis: SENSOR_RANGE,
+            track_direction: 0.0
         }
     }
     
@@ -77,10 +82,11 @@ impl Car {
         }
     }
 
-    pub fn detect_dis(&mut self, track: &Track) {
+    pub fn detect(&mut self, track: &Track) {
+        use crate::game::track::TrackSegmentDirection::*;
         for seg in track.segments.iter() {
             if let (Some(car_center), Some(track_center)) = (self.body.get_center(), seg.body.get_center()) {
-                if car_center.distance(&track_center) > SENSOR_RANGE * 2.0{
+                if car_center.distance(&track_center) > SENSOR_RANGE * 2.0 {
                     continue;
                 }
                 for boundary in &seg.boundaries {
@@ -104,9 +110,24 @@ impl Car {
                             self.sensor.left_dis = distance;
                         }
                     }
+                };
+                if let Some(seg) = track.on_which_track_seg(&self.body) {
+                    self.sensor.track_direction = match seg.direction {
+                        Up => 2.0 * PI * 6.0 / 8.0,
+                        UpRightRight => 2.0 * PI * 7.0 / 8.0,
+                        UpRightUp => 2.0 * PI * 7.0 / 8.0,
+                        Right => 0.0,
+                        DownRightRight => 2.0 * PI * 1.0 / 8.0,
+                        DownRightDown => 2.0 * PI * 1.0 / 8.0,
+                        Down => 2.0 * PI * 2.0 / 8.0,
+                        DownLeftLeft => 2.0 * PI * 3.0 / 8.0,
+                        DownLeftDown => 2.0 * PI * 3.0 / 8.0,
+                        Left => 2.0 * PI * 4.0 / 8.0,
+                        UpLeftLeft => 2.0 * PI * 5.0 / 8.0,
+                        UpLeftUp => 2.0 * PI * 5.0 / 8.0,
+                    };
                 }
             }
         }
     }
 }
-

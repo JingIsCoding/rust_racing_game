@@ -35,6 +35,11 @@ extern "C" {
     fn log_many(a: &str, b: &str);
 }
 
+#[macro_export]
+macro_rules! console_log {
+    ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
+}
+
 // This is like the `main` function, except for JavaScript.
 #[wasm_bindgen(start)]
 pub async fn main_js() -> Result<(), JsValue> {
@@ -48,6 +53,6 @@ pub async fn main_js() -> Result<(), JsValue> {
     let game_loop = RenderLoop::new();
     let canvas = element::<HtmlCanvasElement>("game_canvas").ok_or(JsValue::from_str("did not find canvas"))?;
     let racing_game = RacingGame::new(canvas.width() as f64, canvas.height() as f64).await;
-    game_loop.start(racing_game, canvas)?;
+    game_loop.start(racing_game, canvas).await?;
     Ok(())
 }

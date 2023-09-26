@@ -1,6 +1,9 @@
+use std::f64::consts::PI;
+
 use ndarray::arr2;
 use super::*;
 
+#[derive(Debug)]
 pub struct BoundingBox {
     pub rect: Rect,
     pub lines: Option<Vec<Line>>,
@@ -11,7 +14,7 @@ pub struct BoundingBox {
 
 impl BoundingBox {
     pub fn new(rect: &Rect) -> Self {
-        return Self::new_with_origin(rect, FVec { x: rect.w / 2.0, y: rect.h / 2.0 });
+        return Self::new_with_origin(rect, FVec { x: 0.0, y: 0.0 });
     }
 
     pub fn new_with_origin(rect: &Rect, origin: FVec) -> Self {
@@ -27,8 +30,30 @@ impl BoundingBox {
         return bounding_box;
     }
 
+    pub fn contains(&self, point: &FVec) -> bool {
+        let mut count = 0;
+        if let Some(ref points) = self.points {
+            for i in 0..points.len() {
+                let vertex1 = &points[i];
+                let vertex2 = &points[(i + 1) % points.len()];
+                if (vertex1.y > point.y) != (vertex2.y > point.y) && point.x < (vertex2.x - vertex1.x) * (point.y - vertex1.y) / (vertex2.y - vertex1.y) + vertex1.x {
+                        count += 1;
+                }
+            }
+        }
+        count % 2 == 1
+    }
+
+    pub fn reset_to(&mut self, point: &FVec, rotate: f64) {
+        self.rect.x = point.x;
+        self.rect.y = point.y;
+        self.rotate = rotate;
+        self.update_coordinates();
+    }
+
     pub fn turn_at(&mut self, delta_dregess: f64) {
         self.rotate += delta_dregess;
+        self.rotate = self.rotate % (PI * 2.0);
         self.update_coordinates();
     }
 
@@ -73,8 +98,7 @@ impl BoundingBox {
     }
 
     pub fn get_center(&self) -> Option<FVec> {
-        let (points, _) = self.get_coordinates();
-        if let Some(points) = points {
+        if let Some(points) = &self.points {
             let center = points.iter().fold(FVec::default(), |mut acc, point|{
                 acc.x += point.x;
                 acc.y += point.y;
@@ -89,5 +113,23 @@ impl BoundingBox {
         let (coordinates, lines) = self.get_coordinates();
         renderer.save();
         renderer.restore();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_contains() {
+        let bounding_box = BoundingBox::new_with_origin(&Rect { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }, FVec { x: 0.0, y: 0.0 });
+        if let Some(points) = &bounding_box.points {
+            assert_eq!(4, points.len(), "should have 4 points");
+        } else {
+            panic!("failed");
+        }
+        assert_eq!(true, bounding_box.contains(&FVec { x: 0.5, y: 0.5 }), "not working");
+        assert_eq!(false, bounding_box.contains(&FVec { x: 1.5, y: 1.5 }), "not working");
     }
 }

@@ -5,7 +5,7 @@ const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 const dist = path.resolve(__dirname, "dist");
 
 module.exports = {
-  mode: "production",
+  mode: "development",
   entry: {
     index: "./js/index.js"
   },
@@ -20,7 +20,6 @@ module.exports = {
     new CopyPlugin([
       path.resolve(__dirname, "static")
     ]),
-
     new WasmPackPlugin({
       crateDirectory: __dirname,
     }),

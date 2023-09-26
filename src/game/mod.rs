@@ -12,11 +12,6 @@ use futures::channel::mpsc::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-pub trait Game {
-    fn update(&mut self, delta: f64);
-    fn draw(&mut self, renderer: &Renderer);
-}
-
 pub trait GameObject: Any {
     fn draw(&self, renderer: &Renderer);
     fn update(&mut self, stage: &mut GameStage, delta: f64);
@@ -46,15 +41,15 @@ impl RacingGame {
     }
 }
 
-impl Game for RacingGame {
-    fn draw(&mut self, renderer: &Renderer) {
+impl RacingGame {
+    pub fn draw(&mut self, renderer: &Renderer) {
         renderer.clear(&Rect{ x: 0.0, y:0.0, w: self.width, h: self.height });
         if let Some(stage) = &self.current_stage {
             stage.draw(renderer);
         }
     }
 
-    fn update(&mut self, delta: f64) {
+    pub fn update(&mut self, delta: f64) {
         process_input(&mut self.receiver, self.keyboard_state.clone());
         if let Some(ref mut stage) = self.current_stage {
             stage.update(delta);

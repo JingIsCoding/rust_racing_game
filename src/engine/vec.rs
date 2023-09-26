@@ -10,6 +10,10 @@ impl FVec {
         FVec { x, y }
     }
 
+    pub fn dot(&self, other: &FVec) -> f64 {
+        (self.x * other.x) + (self.y * other.y)
+    }
+
     pub fn project_on(&self, other: &FVec) -> FVec {
         let (v1, v2) = (self.clone(), other.clone());
         if v2.x == 0.0 && v2.y == 0.0 {
@@ -89,6 +93,13 @@ impl ops::Mul<f64> for FVec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_dot() {
+        let (v1, v2) = (FVec::new(0.0, 1.0), FVec::new(0.0, 1.0));
+        let dot = v1.dot(&v2);
+        assert_eq!(1.0, dot, "should be 1");
+    }
 
     #[test]
     fn test_project_on_same_vec() {

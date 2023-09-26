@@ -1,6 +1,5 @@
 use web_sys::*;
 use std::f64::consts::PI;
-use std::hash::{Hash, Hasher};
 use crate::{engine::*, browser::load_image};
 use super::*;
 use uuid;
@@ -8,26 +7,23 @@ use uuid;
 const TRACK_SEG_WIDTH: f64 = 150.0;
 const TRACK_SEG_HEIGHT: f64 = 150.0;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum TrackSegmentDirection {
-    TopToLeft,
-    TopToBottom,
-    TopToRight,
-
-    RightToTop,
-    RightToLeft,
-    RightToBottom,
-
-    BottomToLeft,
-    BottomToTop,
-    BottomToRight,
-
-    LeftToTop,
-    LeftToRight,
-    LeftToBottom
+    Up,
+    UpRightRight,
+    UpRightUp,
+    Right,
+    DownRightRight,
+    DownRightDown,
+    Down,
+    DownLeftLeft,
+    DownLeftDown,
+    Left,
+    UpLeftLeft,
+    UpLeftUp,
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TrackSegmentType {
     UpDown,
     LeftRight,
@@ -38,6 +34,7 @@ pub enum TrackSegmentType {
     FinishLine,
 }
 
+#[derive(Debug)]
 pub struct TrackSegment {
     pub id: uuid::Uuid,
     pub track_type: TrackSegmentType,
@@ -143,34 +140,19 @@ impl Track {
         use TrackSegmentDirection::*;
         use TrackSegmentType::*;
         match *dir {
-            TopToLeft => (LowerRight, current_x - TRACK_SEG_WIDTH, current_y),
-            TopToBottom  => (UpDown, current_x, current_y + TRACK_SEG_HEIGHT),
-            TopToRight  => (LowerLeft, current_x + TRACK_SEG_WIDTH, current_y),
-
-            RightToTop => (LowerLeft, current_x, current_y - TRACK_SEG_HEIGHT),
-            RightToLeft => (LeftRight, current_x - TRACK_SEG_WIDTH, current_y),
-            RightToBottom => (UpperLeft, current_x, current_y + TRACK_SEG_HEIGHT),
-
-            BottomToRight => (UpperLeft, current_x + TRACK_SEG_WIDTH, current_y),
-            BottomToTop => (UpDown, current_x, current_y - TRACK_SEG_HEIGHT),
-            BottomToLeft => (UpperRight, current_x - TRACK_SEG_WIDTH, current_y),
-
-            LeftToTop => (LowerRight, current_x, current_y - TRACK_SEG_HEIGHT),
-            LeftToRight => (LeftRight, current_x + TRACK_SEG_WIDTH, current_y),
-            LeftToBottom => (UpperRight, current_x, current_y + TRACK_SEG_HEIGHT)
+            Up => (UpDown, current_x, current_y - TRACK_SEG_WIDTH),
+            UpRightRight => (UpperLeft, current_x + TRACK_SEG_HEIGHT, current_y),
+            UpRightUp => (UpperLeft, current_x, current_y - TRACK_SEG_HEIGHT),
+            Right => (LeftRight, current_x + TRACK_SEG_WIDTH, current_y),
+            DownRightRight  => (LowerLeft, current_x + TRACK_SEG_WIDTH, current_y),
+            DownRightDown  => (UpperRight, current_x, current_y + TRACK_SEG_WIDTH),
+            Down  => (UpDown, current_x, current_y + TRACK_SEG_HEIGHT),
+            DownLeftLeft => (LowerRight, current_x - TRACK_SEG_WIDTH, current_y),
+            DownLeftDown => (UpperLeft, current_x, current_y + TRACK_SEG_HEIGHT),
+            Left =>  (LeftRight, current_x - TRACK_SEG_WIDTH, current_y),
+            UpLeftLeft => (UpperRight, current_x - TRACK_SEG_HEIGHT, current_y),
+            UpLeftUp => (LowerLeft, current_x, current_y - TRACK_SEG_HEIGHT),
         }
-    }
-}
-
-impl Hash for TrackSegment {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
-
-impl PartialEq for TrackSegment {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
     }
 }
 
@@ -201,9 +183,9 @@ impl Track {
         None
     }
 
-    pub fn on_which_track_seg(&self, car: &car::Car) -> Option<&TrackSegment> {
+    pub(crate) fn on_which_track_seg(&self, car_body: &BoundingBox) -> Option<&TrackSegment> {
         for track_seg in self.segments.iter() {
-            if let Some(p) = car.body.get_center() {
+            if let Some(p) = car_body.get_center() {
                 if track_seg.body.contains(&p) {
                     return Some(track_seg);
                 }

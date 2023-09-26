@@ -5,7 +5,9 @@ use super::car_controller::*;
 use super::car_sensor::*;
 use super::score::Score;
 use std::hash::{Hash, Hasher};
+use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct Action<T>(T);
 
 const ACCELARATE: f64 = 10.0;
@@ -22,22 +24,24 @@ pub enum CarType {
     No8
 }
 
+#[derive(Debug)]
 pub struct Car {
     pub id: uuid::Uuid,
     pub body: BoundingBox,
     pub status: CarStatus,
     pub turning_angle: f64,
     pub sensor: Sensor,
+    pub velocity: f64,
+    pub score: score::Score,
     image: HtmlImageElement,
     actions: Vec<Action<Movement>>,
-    velocity: f64,
     controller: Box<dyn CarController>,
-    score: score::Score,
 }
 
 const CAR_WIDTH: f64 = 63.0;
 const CAR_HEIGHT: f64 = 38.0;
 
+#[derive(Debug)]
 pub enum Movement {
     NotTurning,
     Left,
@@ -48,14 +52,14 @@ pub enum Movement {
 }
 
 impl Car {
-    pub async fn new<T: CarController + 'static>(x: f64, y: f64, car_type: CarType, controller: T) -> Self {
+    pub async fn new(id: Uuid, x: f64, y: f64, car_type: CarType, controller: Box<dyn CarController + 'static>) -> Self {
         let image_src = match car_type {
             CarType::No5 => "car_5.png",
             CarType::No8 => "car_8.png",
         };
         let image = load_image(image_src).await.unwrap();
         Car {
-            id: uuid::Uuid::new_v4(),
+            id,
             image,
             status: CarStatus::Live,
             actions: vec![],
@@ -64,14 +68,16 @@ impl Car {
             velocity: 0.0,
             body: BoundingBox::new_with_origin(&Rect { x, y, w: CAR_WIDTH, h: CAR_HEIGHT }, FVec { x: 0.0, y: CAR_HEIGHT / 2.0 }),
             score: Score::new(),
-            controller: Box::new(controller),
+            controller,
         }
     }
 
-    pub fn reset(&mut self, x: f64, y: f64, rotate: f64) {
+    pub fn reset(&mut self, point: &FVec, rotate: f64) {
+        self.status = CarStatus::Live;
         self.velocity = 0.0;
         self.turning_angle = 0.0;
-        self.body.reset_to(x, y, rotate);
+        self.body.reset_to(point, rotate);
+        self.score.reset();
     }
 
     fn process_actions(&mut self, delta: f64) {
@@ -137,6 +143,10 @@ impl Car {
         }
     }
 
+    pub fn debug(&self) {
+        crate::console_log!("car is on dir {:?}", self.sensor.track_direction);
+    }
+
 }
 
 impl GameObject for Car {
@@ -160,8 +170,8 @@ impl GameObject for Car {
         renderer.rotate(self.body.rotate);
         renderer.translate(&FVec { x: -x - origin_x, y: -y - origin_y });
         renderer.draw_image_with_dest(&self.image, &Rect { x: x - origin_x, y: y - origin_y, w, h });
-
         renderer.restore();
+        self.debug();
     }
 
     fn update(&mut self, stage: &mut GameStage, delta: f64) {
@@ -170,9 +180,12 @@ impl GameObject for Car {
         let tracks = stage.find::<track::Track>();
         if !tracks.is_empty() {
             let track = tracks[0];
-            self.detect_dis(track);
+            self.detect(track);
             self.process_collision(track);
-            self.score.update(self, track);
+            self.score.update(&self.body, track, delta);
+            if self.score.is_stale_for(2.0) {
+                self.status = CarStatus::Dead;
+            }
         }
         match(self.status) {
             CarStatus::Live => {
@@ -184,8 +197,6 @@ impl GameObject for Car {
         }
         self.process_actions(delta);
     }
-
-
 }
 
 

@@ -1,66 +1,76 @@
 use std::collections::HashMap;
 use super::*;
 
-const TOP_LEFT: FVec = FVec::new(0.0,0.0);
-const TOP_RIGHT: FVec = FVec::new(1.0,0.0);
-const BOTTOM_RIGHT: FVec = FVec::new(1.0,1.0);
-const BOTTOM_LEFT: FVec = FVec::new(0.0,1.0);
+const UP: FVec = FVec::new(0.0, -1.0);
+const UP_RIGHT: FVec = FVec::new(1.0, -1.0);
+const RIGHT: FVec = FVec::new(1.0, 0.0);
+const DOWN_RIGHT: FVec = FVec::new(1.0, 1.0);
+const DOWN: FVec = FVec::new(0.0, 1.0);
+const DOWN_LEFT: FVec = FVec::new(-1.0, 1.0);
+const LEFT: FVec = FVec::new(-1.0, 0.0);
+const UP_LEFT: FVec = FVec::new(-1.0, -1.0);
 
-const TOP_TO_LEFT: FVec = BOTTOM_LEFT - TOP_TO_RIGHT;
-const TOP_TO_BOTTOM: FVec = BOTTOM_LEFT - TOP_LEFT;
-const TOP_TO_RIGHT: FVec = BOTTOM_RIGHT - TOP_LEFT;
-
-const RIGHT_TO_TOP: FVec = TOP_LEFT - BOTTOM_RIGHT;
-const RIGHT_TO_LEFT: FVec = TOP_LEFT - TOP_RIGHT;
-const RIGHT_TO_BOTTOM: FVec = BOTTOM_LEFT - TOP_RIGHT;
-
-const BOTTOM_TO_LEFT: FVec = TOP_LEFT - BOTTOM_RIGHT;
-const BOTTOM_TO_TOP: FVec = BOTTOM_LEFT - TOP_LEFT;
-const BOTTOM_TO_RIGHT: FVec = TOP_RIGHT - BOTTOM_LEFT;
-
-const LEFT_TO_TOP: FVec = TOP_RIGHT - BOTTOM_LEFT;
-const LEFT_TO_RIGHT: FVec = TOP_RIGHT - TOP_LEFT;
-const LEFT_TO_BOTTOM: FVec = BOTTOM_RIGHT - TOP_LEFT;
-
+#[derive(Debug)]
 pub struct Score {
+    pub top_score: f64,
     pub score: f64,
-    position: HashMap<uuid::Uuid, FVec>
+    position: HashMap<uuid::Uuid, FVec>,
+    stale_time: f64
 }
 
 impl Score {
     pub fn new() -> Self {
         Score {
             position: HashMap::new(),
-            score: 0.0
+            score: 0.0,
+            top_score: 0.0,
+            stale_time: 0.0
         }
     }
 
-    pub fn update(&mut self, car: &car::Car, track: &track::Track) {
+    pub fn is_stale_for(&self, time: f64) -> bool {
+        self.stale_time > time
+    }
+
+    pub fn reset(&mut self) {
+        self.position.clear();
+        self.top_score = 0.0;
+        self.score = 0.0;
+        self.stale_time = 0.0
+    }
+
+    pub fn update(&mut self, car_body: &BoundingBox, track: &track::Track, delta: f64) {
         use track::TrackSegmentDirection::*;
-        let current_pos = car.body.get_center();
+        let current_pos = car_body.get_center();
         let mut diff = FVec::new(0.0, 0.0);
-        if let Some(seg) = track.on_which_track_seg(car) {
+        if let Some(seg) = track.on_which_track_seg(car_body) {
             if let Some(current_pos) = current_pos {
                 if let Some(last_pos) = (self.position.get(&seg.id)) {
                     diff = current_pos - *last_pos;
                 } 
                 self.position.insert(seg.id, current_pos);
             }
-            let score = match seg.direction {
-                TopToLeft => diff.project_on(&TOP_TO_LEFT).distance(&TOP_LEFT),
-                TopToBottom => diff.project_on(&TOP_TO_BOTTOM).distance(&TOP_LEFT),
-                TopToRight => diff.project_on(&TOP_TO_RIGHT).distance(&TOP_LEFT),
-                RightToTop => diff.project_on(&RIGHT_TO_TOP).distance(&TOP_LEFT),
-                RightToLeft => diff.project_on(&RIGHT_TO_LEFT).distance(&TOP_LEFT),
-                RightToBottom => diff.project_on(&RIGHT_TO_BOTTOM).distance(&TOP_LEFT),
-                BottomToLeft => diff.project_on(&BOTTOM_TO_LEFT).distance(&TOP_LEFT),
-                BottomToTop => diff.project_on(&BOTTOM_TO_TOP).distance(&TOP_LEFT),
-                BottomToRight => diff.project_on(&BOTTOM_TO_RIGHT).distance(&TOP_LEFT),
-                LeftToTop => diff.project_on(&LEFT_TO_TOP).distance(&TOP_LEFT),
-                LeftToRight => diff.project_on(&LEFT_TO_RIGHT).distance(&TOP_LEFT),
-                LeftToBottom => diff.project_on(&LEFT_TO_BOTTOM).distance(&TOP_LEFT),
+            let update_score = match seg.direction {
+                Up => diff.dot(&UP),
+                UpRightRight => diff.dot(&UP_RIGHT),
+                UpRightUp => diff.dot(&UP_RIGHT),
+                Right => diff.dot(&RIGHT),
+                DownRightRight => diff.dot(&DOWN_RIGHT),
+                DownRightDown => diff.dot(&DOWN_RIGHT),
+                Down => diff.dot(&DOWN),
+                DownLeftLeft => diff.dot(&DOWN_LEFT),
+                DownLeftDown => diff.dot(&DOWN_LEFT),
+                Left => diff.dot(&LEFT),
+                UpLeftLeft => diff.dot(&UP_LEFT),
+                UpLeftUp => diff.dot(&UP_LEFT),
             };
-            self.score += score;
+            self.score += update_score;
+            if self.score > self.top_score {
+                self.top_score = self.score;
+                self.stale_time = 0.0;
+            } else {
+                self.stale_time += delta;
+            }
         }
     }
 }

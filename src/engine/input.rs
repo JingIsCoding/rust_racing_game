@@ -5,6 +5,7 @@ use crate::browser::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
+#[derive(Debug)]
 pub struct KeyboardState {
     pressed_keys: HashMap<String, KeyboardEvent>,
 }

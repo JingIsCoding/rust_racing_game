@@ -1,6 +1,6 @@
 use wasm_bindgen::closure::*;
 use std::{rc::Rc, cell::*};
-use web_sys::*;
+use web_sys::{ Window, HtmlCanvasElement, CanvasRenderingContext2d };
 use crate::browser::*;
 use crate::game::*;
 use wasm_bindgen::{ JsValue, JsCast };
@@ -8,6 +8,7 @@ mod input;
 mod bounding_box;
 mod vec;
 mod renderer;
+pub mod network;
 pub use input::*;
 pub use bounding_box::*;
 pub use vec::*;
@@ -88,6 +89,7 @@ impl Cell {
 type SharedLoopClosure = Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>>;
 
 pub struct RenderLoop {
+    is_running: bool,
     last_frame: f64,
     accumulated_delta: f64,
 }
@@ -97,37 +99,45 @@ const FRAME_RATE: f64 = 1.0 / 60.0 * 1000.0;
 impl RenderLoop {
     pub fn new() -> Self {
         RenderLoop {
+            is_running: true,
             last_frame: 0.0,
             accumulated_delta: 0.0,
         }
     }
 
-    pub fn start<T: Game + 'static>(mut self, mut game: T, canvas: HtmlCanvasElement) -> Result<(), JsValue> {
-        let context = get_context(&canvas);
-        if let Some(context) = context {
-            let renderer = Renderer{ context };
-            self.last_frame = now();
-            let f: SharedLoopClosure = Rc::new(RefCell::new(None));
-            let g = f.clone();
-            *g.borrow_mut() = Some(Closure::wrap(Box::new(move |perf: f64| {
-                let mut delta = (perf - self.last_frame);
-                self.accumulated_delta += delta;
-                while self.accumulated_delta > FRAME_RATE {
-                    game.update(delta / 1000.0);
-                    delta = self.accumulated_delta - FRAME_RATE;
-                    self.accumulated_delta -= FRAME_RATE;
-                }
-                self.last_frame = perf;
-                game.draw(&renderer);
-                request_animation_frame(f.borrow().as_ref().unwrap());
-            })));
-            request_animation_frame(g.borrow().as_ref().unwrap())?;
-            return Ok(());
-        } else {
-            return Err(JsValue::from_str("there is not context"));
-        }
+    fn add_global_listeners() -> Result<(), JsValue> {
+        let window: Window = crate::browser::window();
+        let listener: Closure<dyn FnMut(web_sys::FocusEvent)> = Closure::new(move | event | {
+            crate::console_log!("got event {:?}", event);
+        });
+        window.add_event_listener_with_callback("blur", listener.as_ref().unchecked_ref())?;
+        listener.forget();
+        Ok(())
+    }
+
+    pub async fn start(mut self, mut game: RacingGame, canvas: HtmlCanvasElement) -> Result<(), JsValue> {
+        let context = get_context(&canvas).expect("there is no context");
+        let renderer = Renderer{ context };
+        self.last_frame = now();
+        let f: SharedLoopClosure = Rc::new(RefCell::new(None));
+        let g = f.clone();
+        *g.borrow_mut() = Some(Closure::wrap(Box::new(move |perf: f64| {
+            let mut delta = perf - self.last_frame;
+            self.accumulated_delta += delta;
+            while self.accumulated_delta > FRAME_RATE {
+                game.update(delta / 1000.0);
+                delta = self.accumulated_delta - FRAME_RATE;
+                self.accumulated_delta -= FRAME_RATE;
+            }
+            self.last_frame = perf;
+            game.draw(&renderer);
+            request_animation_frame(f.borrow().as_ref().unwrap());
+        })));
+        request_animation_frame(g.borrow().as_ref().unwrap())?;
+        return Ok(());
     }
 }
+
 
 fn get_context(canvas: &HtmlCanvasElement) -> Option<CanvasRenderingContext2d> {
     canvas.get_context("2d").unwrap().unwrap().dyn_into::<CanvasRenderingContext2d>().ok()
