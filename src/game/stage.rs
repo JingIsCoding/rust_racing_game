@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::vec;
 
-const NUM_CARS: u32 = 75;
+const NUM_CARS: u32 = 50;
 
 #[derive(PartialEq)]
 pub enum GameStatus {
